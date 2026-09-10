@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NSFW / Nudity Detector</title>
+    <!-- TensorFlow.js এবং NSFWJS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nsfwjs@2.4.2/dist/nsfwjs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            display: inline-block;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+        #imageDisplay {
+            max-width: 350px;
+            max-height: 350px;
+            margin-top: 20px;
+            border: 2px dashed #ccc;
+            padding: 5px;
+            border-radius: 5px;
+            display: none;
+        }
+        #output {
+            margin-top: 20px;
+            font-size: 16px;
+            text-align: left;
+            display: inline-block;
+        }
+        .loading {
+            color: #d9534f;
+            font-weight: bold;
+        }
+        .success {
+            color: #5cb85c;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>NSFW / Nudity Detector App</h2>
+        <p>একটি ছবি সিলেক্ট করুন:</p>
+        
+        <input type="file" id="imageLoader" accept="image/*">
+        <br>
+        <div>
+            <img id="imageDisplay" alt="Preview Image">
+        </div>
+        
+        <div id="output">
+            <span class="loading">মডেল লোড হচ্ছে, দয়া করে একটু অপেক্ষা করুন...</span>
+        </div>
+    </div>
+
+    <script>
+        let model = undefined;
+        const outputDiv = document.getElementById('output');
+
+        // মডেল লোড করা
+        async function loadModel() {
+            try {
+                model = await nsfwjs.load();
+                outputDiv.innerHTML = "<span class='success'>মডেল সফলভাবে লোড হয়েছে! এখন একটি ছবি আপলোড করুন।</span>";
+            } catch (error) {
+                outputDiv.innerHTML = "<span class='loading'>মডেল লোড করতে সমস্যা হয়েছে। ইন্টারনেট কানেকশন চেক করুন।</span>";
+                console.error(error);
+            }
+        }
+
+        loadModel();
+
+        // ছবি আপলোড এবং স্ক্যান করার লজিক
+        const imageLoader = document.getElementById('imageLoader');
+        imageLoader.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!model) {
+                alert("মডেল এখনও লোড হচ্ছে, দয়া করে কয়েক সেকেন্ড অপেক্ষা করুন।");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const img = document.getElementById('imageDisplay');
+                img.src = event.target.result;
+                img.style.display = "block";
+
+                img.onload = async function() {
+                    outputDiv.innerHTML = "<span class='loading'>ছবি বিশ্লেষণ করা হচ্ছে...</span>";
+                    
+                    // এআই মডেল দিয়ে ছবি স্ক্যান করা
+                    const predictions = await model.classify(img);
+                    
+                    let resultHtml = "<h3>ফলাফল:</h3><ul>";
+                    predictions.forEach(p => {
+                        let percentage = (p.probability * 100).toFixed(2);
+                        resultHtml += `<li><b>${p.className}:</b> ${percentage}%</li>`;
+                    });
+                    resultHtml += "</ul>";
+
+                    // চেক করা যে পর্ন বা হেন্টাই বা সেক্সি ক্যাটাগরির সম্ভাবনা বেশি কিনা (> ৬০%)
+                    const riskClass = predictions.find(p => (p.className === 'Porn' || p.className === 'Hentai' || p.className === 'Sexy') && p.probability > 0.60);
+                    
+                    if (riskClass) {
+                        resultHtml += `<p style="color: red; font-weight: bold;">⚠️ সতর্কতা: এটি একটি অনুপযুক্ত (NSFW) কনটেন্ট!</p>`;
+                    } else {
+                        resultHtml += `<p style="color: green; font-weight: bold;">✅ কনটেন্টটি নিরাপদ (Safe)</p>`;
+                    }
+
+                    outputDiv.innerHTML = resultHtml;
+                }
+            }
+            reader.readAsDataURL(file);
+        });
+    </script>
+
+</body>
+</html>
